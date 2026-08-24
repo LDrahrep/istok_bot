@@ -13,7 +13,7 @@ from telegram import (
 from telegram.ext import ContextTypes, ConversationHandler
 
 from config import Buttons
-from models import clean_name, parse_us_phone, parse_seats, format_phone_display
+from models import clean_name, parse_us_phone, parse_seats, format_phone_display, normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -203,8 +203,9 @@ class BotHandlers:
 
     @staticmethod
     def _hotel_label(it):
+        # Пользователю показываем адрес; если адреса нет — название как запасной вариант.
         h, a = it
-        return h if not a else f"{h} — {a}"[:60]
+        return (a or h)[:64]
 
     # ----- обработчики полей -----
     async def reg_name(self, update, context):
@@ -330,10 +331,11 @@ class BotHandlers:
     async def _show_review(self, context, chat_id):
         ud = context.user_data
         role = ud["reg_role"]
+        hotel_disp = (self.sheets.address_of_hotel(ud["hotel"]) or ud["hotel"]) if ud.get("hotel") else "— (без отеля)"
         lines = ["Проверь данные:", "",
                  f"👤 Имя: {ud.get('name','—')}",
                  f"🏙 Город: {ud.get('city','—')}{', ' + ud['state'] if ud.get('state') else ''}",
-                 f"🏨 Отель: {ud.get('hotel') or '— (без отеля)'}",
+                 f"🏨 Отель: {hotel_disp}",
                  f"📞 Телефон: {format_phone_display(ud.get('phone',''))}"]
         if role == "driver":
             lines.append(f"🚗 Машина: {ud.get('car','—')}")
@@ -517,14 +519,15 @@ class BotHandlers:
         await self._render_results(context, chat_id, results, 0)
         return ConversationHandler.END
 
-    def _person_line(self, p, target):
+    def _person_line(self, p, target, addr_map=None):
         parts = [f"👤 {p.name}"]
         if target == "driver":
             car = p.car or "—"
             parts.append("🚗 " + car + (f", 💺 {p.seats}" if p.seats else ""))
         loc = p.city + (f", {p.state}" if p.state else "")
         if p.hotel:
-            loc += f" · 🏨 {p.hotel}"
+            addr = (addr_map or {}).get(normalize_text(p.hotel)) or p.hotel
+            loc += f" · 🏨 {addr}"
         parts.append("📍 " + loc)
         contact = []
         if p.username:
@@ -542,8 +545,9 @@ class BotHandlers:
             return
         size = self.page_size
         chunk = results[offset:offset + size]
+        addr_map = {normalize_text(h): a for h, a in self.sheets.hotels() if a}
         text = f"Найдено {who}: {len(results)} (показаны {offset + 1}–{offset + len(chunk)})\n\n"
-        text += "\n\n".join(self._person_line(p, target) for p in chunk)
+        text += "\n\n".join(self._person_line(p, target, addr_map) for p in chunk)
         markup = None
         if offset + size < len(results):
             markup = InlineKeyboardMarkup(
@@ -579,10 +583,11 @@ class BotHandlers:
             roles.append("водитель")
         if p.is_passenger:
             roles.append("пассажир")
+        hotel_disp = (self.sheets.address_of_hotel(p.hotel) or p.hotel) if p.hotel else "— (без отеля)"
         lines = [f"📋 Твоя запись ({' + '.join(roles) or '—'}):", "",
                  f"👤 Имя: {p.name}",
                  f"🏙 Город: {p.city}{', ' + p.state if p.state else ''}",
-                 f"🏨 Отель: {p.hotel or '— (без отеля)'}",
+                 f"🏨 Отель: {hotel_disp}",
                  f"📞 Телефон: {format_phone_display(p.phone)}"]
         if p.is_driver:
             lines += [f"🚗 Машина: {p.car or '—'}", f"💺 Мест: {p.seats or '—'}"]
