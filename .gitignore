@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Секреты / окружение — НИКОГДА не коммитить
+.env
+.env.*
+*.session
+*.session-journal
+credentials*.json
+service_account*.json
+google*credentials*.json
+*.pem
+*.key
+
+# Состояние бота / логи
+bot_state.json
+*.log
+
+# OS
+.DS_Store
