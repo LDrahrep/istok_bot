@@ -239,10 +239,15 @@ class BotHandlers:
         ud = context.user_data
         term = update.message.text.strip()
         n = term.casefold()
-        ud["sel_items"] = [it for it in self.sheets.cities()
-                           if n in self._city_label(it).casefold()] or self.sheets.cities()
+        found = [it for it in self.sheets.cities() if n in self._city_label(it).casefold()]
+        if found:
+            ud["sel_items"] = found
+            header = f"Города по запросу «{term}»:"
+        else:
+            ud["sel_items"] = self.sheets.cities()
+            header = f"По запросу «{term}» ничего не нашёл. Вот весь список:"
         ud["sel_page"] = 0
-        await self._send(context, update.effective_chat.id, f"Города по запросу «{term}»:",
+        await self._send(context, update.effective_chat.id, header,
                          self._selection_kb(ud["sel_items"], 0, self._city_label))
         return R_CITY
 
@@ -475,21 +480,27 @@ class BotHandlers:
         ud = context.user_data
         mode = ud["mode"]
         term = update.message.text.strip()
+        n = term.casefold()
         if mode == "hotel":
-            ud["sel_items"] = self.sheets.search_hotels(term)
+            found = self.sheets.search_hotels(term)
+            full = self.sheets.hotels()
             labeler = self._hotel_label
         elif mode == "city":
-            n = term.casefold()
-            ud["sel_items"] = [it for it in self.sheets.cities() if n in self._city_label(it).casefold()] \
-                or self.sheets.cities()
+            found = [it for it in self.sheets.cities() if n in self._city_label(it).casefold()]
+            full = self.sheets.cities()
             labeler = self._city_label
         else:
-            n = term.casefold()
-            ud["sel_items"] = [(s,) for s in self.sheets.states() if n in s.casefold()] \
-                or [(s,) for s in self.sheets.states()]
+            found = [(s,) for s in self.sheets.states() if n in s.casefold()]
+            full = [(s,) for s in self.sheets.states()]
             labeler = lambda it: it[0]
+        if found:
+            ud["sel_items"] = found
+            header = f"По запросу «{term}»:"
+        else:
+            ud["sel_items"] = full
+            header = f"По запросу «{term}» ничего не нашёл. Вот весь список:"
         ud["sel_page"] = 0
-        await self._send(context, update.effective_chat.id, f"Результаты по «{term}»:",
+        await self._send(context, update.effective_chat.id, header,
                          self._selection_kb(ud["sel_items"], 0, labeler))
         return S_VALUE
 
