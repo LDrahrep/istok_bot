@@ -74,6 +74,7 @@ def build_app():
         entry_points=[
             MessageHandler(filters.Regex(_eq(Buttons.I_AM_DRIVER)), h.reg_driver),
             MessageHandler(filters.Regex(_eq(Buttons.I_AM_PASSENGER)), h.reg_passenger),
+            CallbackQueryHandler(h.edit_record_start, pattern=r"^editrec$"),
         ],
         states={
             R_NAME: [cancel_msg, MessageHandler(text, h.reg_name)],

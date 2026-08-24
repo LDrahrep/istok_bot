@@ -341,6 +341,7 @@ class BotHandlers:
             lines.append(f"🚗 Машина: {ud.get('car','—')}")
             lines.append(f"💺 Мест: {ud.get('seats','—')}")
         role_word = "водителя" if role == "driver" else "пассажира"
+        prompt = "Сохранить изменения?" if ud.get("edit_mode") else f"Сохранить как {role_word}?"
         rows = [
             [InlineKeyboardButton("✅ Сохранить", callback_data="save")],
             [InlineKeyboardButton("✏️ Имя", callback_data="edit:name"),
@@ -352,7 +353,7 @@ class BotHandlers:
             rows.append([InlineKeyboardButton("✏️ Машина", callback_data="edit:car"),
                          InlineKeyboardButton("✏️ Места", callback_data="edit:seats")])
         rows.append([InlineKeyboardButton("↩️ Отмена", callback_data="cancel")])
-        await self._send(context, chat_id, "\n".join(lines) + f"\n\nСохранить как {role_word}?",
+        await self._send(context, chat_id, "\n".join(lines) + f"\n\n{prompt}",
                          InlineKeyboardMarkup(rows))
         return R_REVIEW
 
@@ -591,13 +592,34 @@ class BotHandlers:
                  f"📞 Телефон: {format_phone_display(p.phone)}"]
         if p.is_driver:
             lines += [f"🚗 Машина: {p.car or '—'}", f"💺 Мест: {p.seats or '—'}"]
-        rows = []
+        rows = [[InlineKeyboardButton("✏️ Изменить данные", callback_data="editrec")]]
         if p.is_driver:
             rows.append([InlineKeyboardButton("🛑 Перестать быть водителем", callback_data="drop:driver")])
         if p.is_passenger:
             rows.append([InlineKeyboardButton("🛑 Перестать быть пассажиром", callback_data="drop:passenger")])
         rows.append([InlineKeyboardButton("🗑 Удалить полностью", callback_data="drop:all")])
         await self._send(context, chat_id, "\n".join(lines), InlineKeyboardMarkup(rows))
+
+    async def edit_record_start(self, update, context):
+        """Вход в редактирование из «Моя запись» → сразу экран проверки с текущими данными."""
+        q = update.callback_query
+        await q.answer()
+        p = self.sheets.get_person(q.from_user.id)
+        if not p:
+            await self._send(context, q.message.chat_id,
+                             "Нет записи для изменения. Нажми «🚗 Я водитель» или «🧍 Я пассажир».",
+                             self.kb_main())
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data.update(
+            reg_role="driver" if p.is_driver else "passenger",
+            edit_mode=True,
+            name=p.name, city=p.city, state=p.state, hotel=p.hotel,
+            car=p.car, seats=p.seats, phone=p.phone,
+            had_driver=p.is_driver, had_passenger=p.is_passenger,
+            hotel_asked=True,
+        )
+        return await self._show_review(context, q.message.chat_id)
 
     async def record_action(self, update, context):
         q = update.callback_query
