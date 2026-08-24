@@ -41,13 +41,15 @@ Name | telegramID | Username | City | State | Hotel | Car | Seats | Phone | IsDr
 Создай листы «drivers» и «passengers» и вставь в **A1**:
 
 ```
-drivers:     =QUERY(people!A1:M; "select * where J = true"; 1)
-passengers:  =QUERY(people!A1:M; "select * where K = true"; 1)
+drivers:     =QUERY(people!A:M, "select * where J = true", 1)
+passengers:  =QUERY(people!A:M, "select * where K = true", 1)
 ```
 
-(`J` = IsDriver, `K` = IsPassenger — 10-я и 11-я колонки `people`.) Обновляются
-сами; бот в них не пишет. Если у тебя в таблице разделитель формул — запятая,
-замени `;` на `,`.
+(`J` = IsDriver, `K` = IsPassenger — 10-я и 11-я колонки `people`.) Диапазон
+именно `A:M` по целым колонкам — `A1:M` Google принимает за имя и даёт `#NAME?`.
+Обновляются сами; бот в них не пишет. Если у тебя разделитель аргументов — `;`,
+замени запятые на точки с запятой:
+`=QUERY(people!A:M; "select * where J = true"; 1)`.
 
 ## Переменные окружения (Railway)
 

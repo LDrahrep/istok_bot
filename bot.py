@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import traceback
 
 from telegram.ext import (
     Application,
@@ -40,6 +41,28 @@ def build_app():
     request = HTTPXRequest(connect_timeout=20.0, read_timeout=120.0,
                            write_timeout=20.0, pool_timeout=20.0)
     app = Application.builder().token(config.TELEGRAM_BOT_TOKEN).request(request).build()
+
+    async def on_error(update, context):
+        # Больше не молчим: логируем, сообщаем пользователю, шлём трейсбек админу.
+        logger.error("Handler error", exc_info=context.error)
+        try:
+            chat = getattr(update, "effective_chat", None)
+            if chat:
+                await context.bot.send_message(
+                    chat_id=chat.id,
+                    text="⚠️ Что-то пошло не так. Если повторяется — сообщи администратору.")
+        except Exception:
+            pass
+        if config.ADMIN_CHAT_ID:
+            try:
+                tb = "".join(traceback.format_exception(
+                    type(context.error), context.error, context.error.__traceback__))
+                await context.bot.send_message(chat_id=config.ADMIN_CHAT_ID,
+                                               text=("🧾 Ошибка:\n" + tb)[-3500:])
+            except Exception:
+                pass
+
+    app.add_error_handler(on_error)
 
     re_cancel = _eq(Buttons.CANCEL)
     cancel_msg = MessageHandler(filters.Regex(re_cancel), h.cancel)
